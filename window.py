@@ -22,7 +22,7 @@ from dialogs import HelpDialog
 class ImageMagickTool(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ImageMagick GUI Tool v6.0 - Refactored")
+        self.setWindowTitle(f"ImageMagick GUI Tool {CONFIG.app_version}")
         self.resize(1700, 1000)
         
         self.settings = QSettings(str(CONFIG.settings_file), QSettings.IniFormat)
@@ -871,4 +871,5 @@ class ImageMagickTool(QMainWindow):
             return
         # Canvas trái nhận lệnh sync
         self.image_canvas_left.apply_sync_state(state)
+
 
