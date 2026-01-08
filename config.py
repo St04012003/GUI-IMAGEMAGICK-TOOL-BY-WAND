@@ -11,27 +11,31 @@ class Config:
     """
     Class chứa toàn bộ cấu hình của ứng dụng.
     """
-    # Kích thước tối đa cho ảnh preview
+    # 1. Phiên bản ứng dụng 
+    app_version: str = "v1.0"
+
+    # 2. Kích thước tối đa cho ảnh preview
     preview_max_width: int = 800
     preview_max_height: int = 1200
 
-    # [FIX] Dùng tên file v6 để khớp với dữ liệu cũ
+    # 3. Dùng tên file v6 để khớp với dữ liệu cũ
     preset_file: Path = Path("presets.json")
     settings_file: Path = Path("settings.ini")
 
-    # Độ trễ (ms) trước khi chạy lệnh preview (Debounce)
+    # 4. Độ trễ (ms) trước khi chạy lệnh preview (Debounce)
     debounce_delay: int = 500
     
-    # Số lượng ảnh tối đa lưu trong RAM (LRU Cache)
+    # 5. Số lượng ảnh tối đa lưu trong RAM (LRU Cache)
     cache_size: int = 600
     
-    # Garbage Collection interval
+    # 6. Garbage Collection interval
     gc_interval: int = 20
     
-    # Các định dạng ảnh hỗ trợ
+    # 7. Các định dạng ảnh hỗ trợ
     image_extensions: Tuple[str, ...] = ('.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp')
     
-    # Danh sách lệnh (sẽ được core.py tự động điền)
+    # 8. Danh sách lệnh (sẽ được core.py tự động điền)
     commands: List[str] = field(default_factory=list)
     
+
 CONFIG = Config()
