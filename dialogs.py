@@ -6,10 +6,10 @@ from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QPushButton, QHBox
 # HELP DIALOG 
 # =============
 class HelpDialog(QDialog):
-    """Dialog hướng dẫn sử dụng và tra cứu lệnh (Cập nhật v6.0)"""
+    """Dialog hướng dẫn sử dụng và tra cứu lệnh"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Hướng dẫn & Tra cứu lệnh ImageMagick v6.0")
+        self.setWindowTitle("Hướng dẫn & Tra cứu lệnh ImageMagick")
         self.resize(1100, 800)
         
         # Set style chung cho Dialog (Light Theme)
@@ -74,7 +74,7 @@ class HelpDialog(QDialog):
             code { background-color: #eee; padding: 2px 4px; border-radius: 3px; font-family: Consolas; color: #333; }
         </style>
         
-        <h1>ImageMagick GUI Tool v6.0</h1>
+        <h1>ImageMagick GUI Tool </h1>
         
         <h2>🚀 Quy trình xử lý ảnh</h2>
         <ol>
@@ -225,4 +225,5 @@ class HelpDialog(QDialog):
             html += "</table>"
             
         browser.setHtml(html)
+
         return browser
