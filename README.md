@@ -1,4 +1,4 @@
-# ImageMagick GUI Tool v6.0
+# ImageMagick GUI Tool 
 
 **ImageMagick GUI Tool** là một ứng dụng giao diện đồ họa (GUI) mạnh mẽ được viết bằng **Python (PyQt5)**, giúp bạn xử lý ảnh hàng loạt sử dụng sức mạnh của thư viện **ImageMagick (Wand)**.
 
