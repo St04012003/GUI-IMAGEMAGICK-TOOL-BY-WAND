@@ -1,0 +1,3 @@
+Wand
+PySide6
+qtpy

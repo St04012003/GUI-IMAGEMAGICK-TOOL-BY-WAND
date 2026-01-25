@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QSplitter, QLabel, QListWidget, 
+from qtpy.QtWidgets import (QWidget, QVBoxLayout, QSplitter, QLabel, QListWidget, 
                              QGridLayout, QMenu, QAction, QInputDialog, QMessageBox, QFileDialog)
-from PyQt5.QtCore import Qt, pyqtSignal
+from qtpy.QtCore import Qt, Signal
 
 from config import CONFIG
 from widgets import create_button, create_groupbox
@@ -12,10 +12,10 @@ from widgets import create_button, create_groupbox
 # =============
 class LeftPanel(QWidget):
     # Signals
-    req_select_input = pyqtSignal()
-    req_select_output = pyqtSignal()
-    file_selected = pyqtSignal(int)
-    preset_applied = pyqtSignal(str)
+    req_select_input = Signal()
+    req_select_output = Signal()
+    file_selected = Signal(int)
+    preset_applied = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -152,7 +152,7 @@ class LeftPanel(QWidget):
         rename_action = QAction("Rename", self)
         rename_action.triggered.connect(lambda: self._rename_preset(item))
         menu.addAction(rename_action)
-        menu.exec_(self.list_presets.mapToGlobal(pos))
+        menu.exec(self.list_presets.mapToGlobal(pos))
 
     def _rename_preset(self, item):
         old_name = item.text()

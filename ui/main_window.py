@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import List, Dict, Optional
 
-from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QMessageBox, QFileDialog
-from PyQt5.QtCore import Qt, QTimer, QSettings
-from PyQt5.QtGui import QImage, QPixmap
+from qtpy.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QSplitter, QMessageBox, QFileDialog
+from qtpy.QtCore import Qt, QTimer, QSettings
+from qtpy.QtGui import QImage, QPixmap
 from wand.image import Image as WandImage
 
 # Import Modules
@@ -27,7 +27,7 @@ class ImageMagickTool(QMainWindow):
         self.resize(1700, 1000)
         
         self.settings = QSettings(str(CONFIG.settings_file), QSettings.IniFormat)
-        self.cache = ImageCache(max_size=30)
+        self.cache = ImageCache(max_size_mb=500)
 
         # State
         self.input_dir = Path(self.settings.value("last_input_dir", ""))
@@ -42,7 +42,8 @@ class ImageMagickTool(QMainWindow):
 
         # Controllers
         self.preview_controller = PreviewController()
-        self.preview_controller.preview_ready_signal.connect(self._on_preview_ready_thread_safe)
+        self.preview_controller.original_ready_signal.connect(self._on_original_ready)
+        self.preview_controller.preview_ready_signal.connect(self._on_preview_ready)
         
         # Timers
         self.ui_load_timer = QTimer()
@@ -73,7 +74,7 @@ class ImageMagickTool(QMainWindow):
         self.left.get_current_command_callback = lambda: self.right.txt_command.toPlainText().strip()
 
         # Layout
-        main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
         main_splitter.addWidget(self.left)
         main_splitter.addWidget(self.middle)
         main_splitter.addWidget(self.right)
@@ -97,10 +98,24 @@ class ImageMagickTool(QMainWindow):
         self.right.req_help.connect(self._show_help)
 
     def _restore_settings(self):
-        if self.input_dir.exists():
-            self.left.lbl_input.setText(str(self.input_dir))
+        # Restore và hiển thị output directory
         if self.output_dir.exists():
             self.left.lbl_output.setText(self.output_dir.name)
+        
+        # Restore và TỰ ĐỘNG QUÉT input directory
+        if self.input_dir.exists():
+            self.left.lbl_input.setText(str(self.input_dir))
+            # Tự động quét file từ folder đã lưu
+            self.left.list_files.clear()
+            self.left.list_files.addItem("Đang khôi phục folder trước...")
+            self.left.btn_input.setEnabled(False)
+            
+            self.file_loader_worker = FileLoaderWorker(
+                self.input_dir, 
+                CONFIG.image_extensions
+            )
+            self.file_loader_worker.finished_signal.connect(self._on_scan_finished)
+            self.file_loader_worker.start()
 
     # --- LOGIC XỬ LÝ (Giữ nguyên như cũ) ---
     def _select_input(self):
@@ -111,7 +126,7 @@ class ImageMagickTool(QMainWindow):
         btn_files = msg.addButton("Chọn Files", QMessageBox.ActionRole)
         btn_folder = msg.addButton("Chọn Folder", QMessageBox.ActionRole)
         msg.addButton("Hủy", QMessageBox.RejectRole)
-        msg.exec_()
+        msg.exec()
         
         if msg.clickedButton() == btn_files:
             files, _ = QFileDialog.getOpenFileNames(self, "Chọn file", start_dir, f"Images ({' '.join(['*' + e for e in CONFIG.image_extensions])})")
@@ -149,6 +164,8 @@ class ImageMagickTool(QMainWindow):
         if d:
             self.output_dir = Path(d)
             self.left.lbl_output.setText(self.output_dir.name)
+            # LƯU LẠI NGAY KHI CHỌN (không đợi đến khi đóng app)
+            self.settings.setValue("last_output_dir", str(self.output_dir))
 
     def _finalize_load_files(self, total_count):
         self.left.lbl_input.setText(f"{self.input_dir.name} ({total_count})")
@@ -213,10 +230,18 @@ class ImageMagickTool(QMainWindow):
         self._execute_preview_update()
 
     def _update_left_canvas(self):
+        """Yêu cầu Original Worker xử lý ảnh gốc"""
         if self.cached_source_blob:
-            qimg = QImage.fromData(self.cached_source_blob)
-            self.middle.image_canvas_left.set_image(QPixmap.fromImage(qimg), reset_view=self.middle.image_canvas_left.reset_view_flag)
-            self.middle.image_canvas_left.reset_view_flag = False
+            self.preview_controller.request_original(self.cached_source_blob)
+
+    def _on_original_ready(self, qimage: QImage):
+        """Nhận ảnh gốc từ Original Worker và hiển thị panel trái"""
+        pixmap = QPixmap.fromImage(qimage)
+        self.middle.image_canvas_left.set_image(
+            pixmap, 
+            reset_view=self.middle.image_canvas_left.reset_view_flag
+        )
+        self.middle.image_canvas_left.reset_view_flag = False
 
     def _execute_preview_update(self):
         if not self.cached_source_blob or self._preview_lock: return
@@ -228,13 +253,13 @@ class ImageMagickTool(QMainWindow):
         self._preview_lock = True
         self.preview_controller.request_preview(self.cached_source_blob, cmd)
 
-    def _on_preview_ready_thread_safe(self, blob_data):
+    def _on_preview_ready(self, qimage: QImage):
+        """Nhận QImage từ Preview Worker và hiển thị panel phải"""
         self._preview_lock = False
         try:
-            qimg = QImage.fromData(blob_data)
             cmd = self.right.txt_command.toPlainText().strip()
-            self.cache.put(cmd, qimg)
-            self._update_right_display(qimg)
+            self.cache.put(cmd, qimage)
+            self._update_right_display(qimage)
         except Exception as e:
             print(f"Error preview: {e}")
 
@@ -251,11 +276,49 @@ class ImageMagickTool(QMainWindow):
         if not cmd:
             QMessageBox.warning(self, "Thiếu lệnh", "Vui lòng nhập lệnh.")
             return
+        # -------------- Scan conflicts và hiện popup (CHỈ KHI BẤM START) -------------
+        has_conflicts, conflict_list = BatchWorker.scan_for_conflicts(
+            self.file_structure, self.input_dir, self.output_dir, cmd
+        )
+        
+        overwrite_mode = "overwrite"  # Default
+        
+        if has_conflicts:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle("⚠️ File Conflicts Detected")
+            msg.setText(f"Phát hiện {len(conflict_list)} file đã tồn tại trong output folder.")
+            
+            # Hiển thị 5 file đầu tiên
+            preview = ', '.join(conflict_list[:5])
+            if len(conflict_list) > 5:
+                preview += f"... và {len(conflict_list) - 5} file khác"
+            msg.setInformativeText(f"Ví dụ: {preview}")
+            
+            btn_overwrite = msg.addButton("Ghi Đè Tất Cả", QMessageBox.YesRole)
+            btn_skip = msg.addButton("Bỏ Qua File Trùng", QMessageBox.NoRole)
+            btn_cancel = msg.addButton("Hủy", QMessageBox.RejectRole)
+            
+            msg.setDefaultButton(btn_skip)  # Default = Skip (an toàn hơn)
+            msg.exec()
+            
+            if msg.clickedButton() == btn_overwrite:
+                overwrite_mode = "overwrite"
+            elif msg.clickedButton() == btn_skip:
+                overwrite_mode = "skip"
+            else:  # Cancel
+                return
+        # -------------- Khởi tạo Worker với overwrite_mode ----------------
         self.right.btn_start.setEnabled(False)
         self.right.btn_stop.setEnabled(True)
         self.right.progress_bar.setValue(0)
         self.right.txt_log.clear()
-        self.worker = BatchWorker(self.file_structure, self.input_dir, self.output_dir, cmd)
+        self.worker = BatchWorker(
+            self.file_structure, 
+            self.input_dir, 
+            self.output_dir, 
+            cmd,
+            overwrite_mode=overwrite_mode)
         self.worker.progress_signal.connect(lambda c, t, f: self.right.progress_bar.setValue(c) or self.right.progress_bar.setMaximum(t))
         self.worker.log_signal.connect(self.right.append_log)
         self.worker.finished_signal.connect(self._batch_finished)
@@ -273,13 +336,21 @@ class ImageMagickTool(QMainWindow):
         QMessageBox.information(self, "Xong", "Hoàn tất xử lý!")
 
     def _show_help(self):
-        HelpDialog(self).exec_()
+        HelpDialog(self).exec()
 
     def closeEvent(self, event):
-        if self.output_dir: self.settings.setValue("last_output_dir", str(self.output_dir))
-        if self.input_dir and self.input_dir.exists(): self.settings.setValue("last_input_dir", str(self.input_dir))
-        if self.preview_controller: self.preview_controller.shutdown()
+        # Lưu settings (đã lưu output_dir real-time ở _select_output rồi)
+        if self.input_dir and self.input_dir.exists(): 
+            self.settings.setValue("last_input_dir", str(self.input_dir))
+        
+        # Shutdown workers
+        if self.preview_controller: 
+            self.preview_controller.shutdown()
         if self.worker and self.worker.isRunning(): 
             self.worker.stop()
             self.worker.terminate()
+        if self.file_loader_worker and self.file_loader_worker.isRunning():
+            self.file_loader_worker.quit()
+            self.file_loader_worker.wait()
+        
         event.accept()

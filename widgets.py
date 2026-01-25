@@ -1,10 +1,10 @@
-# 5.widgets.py
+# widgets.py
 
 import re
 from typing import Callable, Tuple
-from PyQt5.QtWidgets import QPushButton, QGroupBox, QVBoxLayout, QPlainTextEdit, QCompleter, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QFrame
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter, QKeyEvent, QTextCursor, QPainter
+from qtpy.QtWidgets import QPushButton, QGroupBox, QVBoxLayout, QPlainTextEdit, QCompleter, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QFrame
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter, QKeyEvent, QTextCursor, QPainter
 
 from config import CONFIG
 
@@ -56,7 +56,7 @@ class CommandSyntaxHighlighter(QSyntaxHighlighter):
         if bold: 
             f.setFontWeight(QFont.Bold)
         if wave:
-            f.setUnderlineStyle(QTextCharFormat.WaveUnderline)
+            f.setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
             f.setUnderlineColor(QColor(color))
         return f
 
@@ -131,14 +131,14 @@ class SmartCommandEdit(QPlainTextEdit):
         # ✅ CẢI TIẾN: Xử lý khi popup đang mở
         if self.completer.popup().isVisible():
             # Các phím đặc biệt khi popup đang hiển thị
-            if event.key() in (Qt.Key_Enter, Qt.Key_Return, Qt.Key_Escape, Qt.Key_Tab):
+            if event.key() in (Qt.Key.Key_Enter, Qt.Key_Return, Qt.Key_Escape, Qt.Key_Tab):
                 if event.key() == Qt.Key_Escape:
                     # ESC: Đóng popup không chèn gì
                     self.completer.popup().hide()
                     event.accept()
                     return
                     
-                elif event.key() in (Qt.Key_Enter, Qt.Key_Return, Qt.Key_Tab):
+                elif event.key() in (Qt.Key.Key_Enter, Qt.Key_Return, Qt.Key_Tab):
                     # ENTER/TAB: Chèn lệnh được chọn + khoảng trắng + đóng popup
                     if self.completer.popup().currentIndex().isValid():
                         selected_text = self.completer.popup().currentIndex().data()
@@ -203,15 +203,22 @@ class ImageCanvas(QGraphicsView):
         self.is_syncing = False # Cờ chặn loop vô tận
         self.reset_view_flag = False
 
+        self.min_scale = 0.01   # Zoom out tối đa 1%
+        self.max_scale = 50.0   # Zoom in tối đa 5000%
+        self.zoom_factor = 1.15 # Tốc độ zoom (mượt hơn 1.2)
+
         # Cấu hình View
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setBackgroundBrush(QColor(30, 30, 30))
         self.setFrameShape(QFrame.NoFrame)
+        self.setViewportUpdateMode(QGraphicsView.SmartViewportUpdate)
+        self.setCacheMode(QGraphicsView.CacheBackground)
+        self.setOptimizationFlag(QGraphicsView.DontAdjustForAntialiasing, True)
 
     def set_image(self, q_pixmap, reset_view=False):
         # [FIX] Khóa Sync khi đang load ảnh để tránh trigger sự kiện cuộn giả
@@ -221,7 +228,7 @@ class ImageCanvas(QGraphicsView):
             self.scene.setSceneRect(self.pixmap_item.boundingRect())
             
             if reset_view:
-                self.fitInView(self.pixmap_item, Qt.KeepAspectRatio)
+                self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
         finally:
             # Luôn mở khóa dù có lỗi hay không
             self.is_syncing = False
@@ -238,14 +245,25 @@ class ImageCanvas(QGraphicsView):
         zoom_factor = 1.15
         scale_tr = zoom_factor if event.angleDelta().y() > 0 else 1 / zoom_factor
         
+        # 2. Kiễm tra giới hạn zoom
         current_scale = self.transform().m11()
+        new_scale = current_scale * scale_tr
+        # Giới hạn zoom range
         if (current_scale > 20 and scale_tr > 1) or (current_scale < 0.05 and scale_tr < 1):
             return
 
-        # 2. Thực hiện Zoom
+        # 3. Lưu vị trí chuột trước khi zoom
+        old_pos = self.mapToScene(event.pos())
+
+        # 4. Thực hiện Zoom
         self.scale(scale_tr, scale_tr)
 
-        # 3. Gửi lệnh đồng bộ
+        # 5. Điều chỉnh lại vị trí zoom đúng vào điểm chuột
+        new_pos = self.mapToScene(event.pos())
+        delta = new_pos - old_pos
+        self.translate(delta.x(), delta.y())
+
+        # 6. Gửi lệnh đồng bộ
         self._broadcast_view_state()
 
     def scrollContentsBy(self, dx, dy):
@@ -274,23 +292,52 @@ class ImageCanvas(QGraphicsView):
         if not self.pixmap_item.pixmap():
             return
 
-        # [FIX] Khóa Sync ngay lập tức trước khi thay đổi view
+        # Khóa Sync ngay lập tức trước khi thay đổi view
         self.is_syncing = True
         
         try:
-            # 1. Áp dụng Scale
+            # 1. Kiểm tra giới hạn trước khi áp dụng
+            target_scale = state['scale']
+            if target_scale < self.min_scale or target_scale > self.max_scale:
+                return
+            
+            # 2. Áp dụng Scale
             target_scale = state['scale']
             new_transform = self.transform()
             new_transform.reset() 
             new_transform.scale(target_scale, target_scale)
             self.setTransform(new_transform)
 
-            # 2. Áp dụng Center (Hàm này sẽ trigger scrollContentsBy -> Cần is_syncing chặn lại)
+            # 3. Áp dụng Center (Hàm này sẽ trigger scrollContentsBy -> Cần is_syncing chặn lại)
             self.centerOn(state['center_x'], state['center_y'])
         
         except Exception as e:
             print(f"Sync error: {e}")
         
         finally:
-            # [FIX] Mở khóa an toàn
+            # Mở khóa an toàn
             self.is_syncing = False
+    
+    def zoom_to_fit(self):
+        """Reset zoom về fit toàn bộ ảnh trong viewport"""
+        if self.pixmap_item.pixmap():
+            self.is_syncing = True
+            try:
+                self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
+                self._broadcast_view_state()
+            finally:
+                self.is_syncing = False
+
+    def zoom_to_100(self):
+        """Reset zoom về 100% (1:1 pixel)"""
+        if self.pixmap_item.pixmap():
+            self.is_syncing = True
+            try:
+                self.resetTransform()
+                self._broadcast_view_state()
+            finally:
+                self.is_syncing = False
+
+    def get_current_zoom_percent(self) -> int:
+        """Lấy % zoom hiện tại (dùng để hiển thị trên UI)"""
+        return int(self.transform().m11() * 100)

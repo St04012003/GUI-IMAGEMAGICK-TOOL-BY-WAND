@@ -1,10 +1,10 @@
 # dialog/ui.py
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QPushButton, QHBoxLayout, QTextBrowser
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QPushButton, QHBoxLayout, QTextBrowser
 
 # Import nội dung từ các file cùng thư mục (dùng dấu chấm .)
 from .guide import GUIDE_CONTENT
-from .reference import REFERENCE_CONTENT
+from .reference import _build_reference_html
 
 class HelpDialog(QDialog):
     """Dialog hướng dẫn sử dụng và tra cứu lệnh"""
@@ -67,7 +67,7 @@ class HelpDialog(QDialog):
         
         self.tabs = QTabWidget()
         self.tabs.addTab(self._create_guide_tab(), "📖 Hướng dẫn nhanh")
-        self.tabs.addTab(self._create_reference_tab(), "🔍 Tra cứu lệnh (Full)")
+        self.tabs.addTab(self._create_reference_tab(), "🔍 Tra cứu lệnh")
         
         layout.addWidget(self.tabs)
         
@@ -90,5 +90,6 @@ class HelpDialog(QDialog):
     def _create_reference_tab(self):
         """Tab tra cứu lệnh"""
         browser = QTextBrowser()
-        browser.setHtml(REFERENCE_CONTENT)
+        html_content = _build_reference_html()
+        browser.setHtml(html_content)
         return browser

@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QSplitter, 
+from qtpy.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QSplitter, 
                              QProgressBar, QTextEdit)
-from PyQt5.QtCore import Qt, pyqtSignal
+from qtpy.QtCore import Qt, Signal
 
 from widgets import SmartCommandEdit, create_button, create_groupbox
 
@@ -8,10 +8,10 @@ from widgets import SmartCommandEdit, create_button, create_groupbox
 # RIGHT PANEL
 # =============
 class RightPanel(QWidget):
-    req_start_batch = pyqtSignal()
-    req_stop_batch = pyqtSignal()
-    req_help = pyqtSignal()
-    command_changed = pyqtSignal()
+    req_start_batch = Signal()
+    req_stop_batch = Signal()
+    req_help = Signal()
+    command_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -22,7 +22,7 @@ class RightPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
         splitter.addWidget(self._create_batch_group())
         splitter.addWidget(self._create_log_group())
         splitter.addWidget(self._create_command_group())
@@ -42,7 +42,7 @@ class RightPanel(QWidget):
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(35)
-        self.progress_bar.setAlignment(Qt.AlignCenter)
+        self.progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         layout.addWidget(self.btn_start)
         layout.addWidget(self.btn_stop)

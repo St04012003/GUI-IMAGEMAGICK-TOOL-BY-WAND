@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel)
-from PyQt5.QtCore import Qt, pyqtSignal
+from qtpy.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel)
+from qtpy.QtCore import Qt, Signal
 
 from widgets import ImageCanvas, create_button
 
@@ -7,9 +7,9 @@ from widgets import ImageCanvas, create_button
 # MIDDLE PANEL
 # =============
 class MiddlePanel(QWidget):
-    req_prev_image = pyqtSignal()
-    req_next_image = pyqtSignal()
-    req_refresh_preview = pyqtSignal()
+    req_prev_image = Signal()
+    req_next_image = Signal()
+    req_refresh_preview = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -44,7 +44,7 @@ class MiddlePanel(QWidget):
         )
         
         self.lbl_info = QLabel("No Image")
-        self.lbl_info.setAlignment(Qt.AlignCenter)
+        self.lbl_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_info.setStyleSheet("font-weight: bold; font-size: 14px;")
         
         nav_layout.addWidget(self.btn_prev)

@@ -5,32 +5,19 @@ from config import CONFIG
 from utils import handle_errors
 
 # Import các module Ops
-from .cmd_geometry import GeometryCommands
-from .cmd_settings import SettingsCommands
-from .cmd_color import ColorCommands
-from .cmd_filter import FiltersCommands     
-from .cmd_artistic import ArtisticCommands
-from .cmd_decoration import DecorationCommands
-from .cmd_edge import EdgeCommands
+from .commands import ALL_COMMANDS
 
-
-
+# ==================
+# COMMAND PARSER
+# ==================
 class CommandParser:
     """
     Trình phân tích cú pháp lệnh trung tâm.
     """
 
     # Tổng hợp DISPATCH từ các module con
-    DISPATCH = {}
-    DISPATCH.update(GeometryCommands.get_map())
-    DISPATCH.update(SettingsCommands.get_map())
-    DISPATCH.update(ColorCommands.get_map())
-    DISPATCH.update(FiltersCommands.get_map()) 
-    DISPATCH.update(ArtisticCommands.get_map())
-    DISPATCH.update(DecorationCommands.get_map())
-    DISPATCH.update(EdgeCommands.get_map())
+    DISPATCH = ALL_COMMANDS
     
-
     @staticmethod
     def parse(command_string: str) -> List[Tuple[str, Optional[str]]]:
         # Tách chuỗi lệnh thành danh sách các cặp (lệnh, giá trị)

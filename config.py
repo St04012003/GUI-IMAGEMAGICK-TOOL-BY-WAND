@@ -12,7 +12,7 @@ class Config:
     Class chứa toàn bộ cấu hình của ứng dụng.
     """
     # 1. Phiên bản ứng dụng 
-    app_version: str = "v1.0"
+    app_version: str = "v3.0"
 
     # 2. Kích thước tối đa cho ảnh preview
     preview_max_width: int = 800
